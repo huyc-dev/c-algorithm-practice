@@ -1,0 +1,231 @@
+#include <stdio.h>
+#include <windows.h>
+#include <time.h>
+#include <conio.h>  // 添加conio.h用于_getch()
+
+#define Height 25      // 迷宫高度（必须奇数）
+#define Width 25       // 迷宫宽度（必须奇数）
+#define Wall 1         // 墙
+#define Road 0         // 路
+#define Start 2        // 起点
+#define End 3          // 终点
+#define Path 4         // 寻路时走过的路径标记
+
+// 全局变量
+int map[Height + 2][Width + 2];  // 迷宫地图
+int is_find_end = 0;         // 是否找到终点的标记，0=未找到，1=找到
+int player_x = 1;            // 玩家X坐标
+int player_y = 1;            // 玩家Y坐标
+int is_auto_mode = 0;        // 是否处于自动模式
+
+void gotoxy(int x, int y);
+void hidden();
+void create(int x, int y);
+void paint(int x, int y);
+void game();
+int auto_find_path(int x, int y);
+void manual_move();
+void draw_player();
+
+// 移动控制台光标
+void gotoxy(int x, int y)
+{
+    COORD coord;
+    coord.X = x;
+    coord.Y = y;
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+}
+
+// 隐藏光标
+void hidden()
+{
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_CURSOR_INFO cci;
+    GetConsoleCursorInfo(hOut, &cci);
+    cci.bVisible = 0;
+    SetConsoleCursorInfo(hOut, &cci);
+}
+
+// 递归随机生成迷宫
+void create(int x, int y)
+{
+    int dir[4][2] = { 0,1,1,0,0,-1,-1,0 };
+    int i, j, t;
+    for (i = 0; i < 4; i++)
+    {
+        j = rand() % 4;
+        t = dir[i][0]; dir[i][0] = dir[j][0]; dir[j][0] = t;
+        t = dir[i][1]; dir[i][1] = dir[j][1]; dir[j][1] = t;
+    }
+    map[x][y] = Road;
+    for (i = 0; i < 4; i++)
+    {
+        int nx = x + 2 * dir[i][0];
+        int ny = y + 2 * dir[i][1];
+        if (nx > 0 && nx < Height && ny > 0 && ny < Width && map[nx][ny] == Wall)
+        {
+            map[x + dir[i][0]][y + dir[i][1]] = Road;
+            create(nx, ny);
+        }
+    }
+}
+
+// 绘制迷宫格子
+void paint(int x, int y)
+{
+    gotoxy(2 * y, x);
+    switch (map[x][y])
+    {
+    case Start: printf("入"); break;
+    case End:   printf("出"); break;
+    case Wall:  printf("▇"); break;
+    case Road:  printf("  "); break;
+    case Path:  printf("●"); break;
+    }
+}
+
+// 手动移动函数
+void manual_move()
+{
+    char key;
+    int new_x = player_x;
+    int new_y = player_y;
+
+    if (_kbhit())  // 检查是否有按键
+    {
+        key = _getch();
+        switch (key)
+        {
+        case 'w': case 'W': new_x--; break;  // 上
+        case 's': case 'S': new_x++; break;  // 下
+        case 'a': case 'A': new_y--; break;  // 左
+        case 'd': case 'D': new_y++; break;  // 右
+        case 'q': case 'Q': is_auto_mode = 1; return;  // 切换到自动模式
+        default: break;
+        }
+
+        // 检查新位置是否合法
+        if (new_x > 0 && new_x < Height && new_y > 0 && new_y < Width &&
+            map[new_x][new_y] != Wall)
+        {
+            player_x = new_x;
+            player_y = new_y;
+            draw_player();
+
+            // 检查是否到达终点
+            if (map[player_x][player_y] == End)
+            {
+                gotoxy(0, Height + 2);
+                printf("恭喜！手动模式到达终点！");
+            }
+        }
+    }
+}
+
+// 绘制玩家位置
+void draw_player()
+{
+    gotoxy(2 * player_y, player_x);
+    printf("●");  // 用●表示玩家
+}
+
+// ===================== 核心新增：DFS自动寻路函数 =====================
+// 传入参数：当前所在坐标 (x,y)
+// 返回值：1=找到终点，0=此路不通
+// 自动寻路函数
+int auto_find_path(int x, int y)
+{
+    // 递归终止条件1：已经找到终点，直接返回，终止所有递归分支
+    if (is_find_end == 1)
+        return 1;
+    // 递归终止条件2：当前位置非法（墙、越界、已经走过）
+    if (map[x][y] == Wall || map[x][y] == Path)
+        return 0;
+    // 递归终止条件3：到达终点，标记成功，返回
+    if (map[x][y] == End)
+    {
+        is_find_end = 1;
+        return 1;
+    }
+
+    // 标记当前位置为【已经走过的路径】，防止回头走重复路
+    if (map[x][y] != Start)
+        map[x][y] = Path;
+    paint(x, y);
+    Sleep(30);//移动延迟【关键】，数值越小越快，可改(如10=超快，100=超慢)
+
+    // 核心逻辑：按 上、下、左、右 四个方向递归探索
+    // 只要任意一个方向返回1（找到终点），就一路返回1，快速终止其他分支
+    if (auto_find_path(x - 1, y) == 1) return 1;
+    if (auto_find_path(x + 1, y) == 1) return 1;
+    if (auto_find_path(x, y - 1) == 1) return 1;
+    if (auto_find_path(x, y + 1) == 1) return 1;
+
+    // 回溯逻辑：如果四个方向都走不通，说明是死胡同
+    if (map[x][y] != Start)
+    {
+        map[x][y] = Road;
+        paint(x, y);
+        Sleep(30);
+    }
+    return 0;    // 此路不通，返回0
+}
+
+// 游戏主逻辑
+void game()
+{
+    int i, j;
+
+    // 初始化迷宫
+    for (i = 0; i <= Height + 1; i++)
+        for (j = 0; j <= Width + 1; j++)
+            map[i][j] = Wall;
+
+    // 随机生成迷宫
+    srand((unsigned int)time(NULL));
+    create(1, 1);
+
+    // 设置起点和终点
+    map[1][1] = Start;
+    map[Height - 2][Width - 2] = End;
+
+    // 绘制完整迷宫
+    for (i = 1; i <= Height; i++)
+        for (j = 1; j <= Width; j++)
+            paint(i, j);
+
+    // 初始化玩家位置
+    player_x = 1;
+    player_y = 1;
+    draw_player();
+
+    hidden();
+
+    // 显示操作提示
+    gotoxy(0, Height + 2);
+    printf("按WASD手动移动，按Q切换到自动模式");
+
+    // 游戏主循环
+    while (1)
+    {
+        if (is_auto_mode)
+        {
+            auto_find_path(player_x, player_y);
+            gotoxy(0, Height + 2);
+            printf("自动寻路完成！");
+            break;
+        }
+        else
+        {
+            manual_move();
+            Sleep(50);  // 降低手动移动速度
+        }
+    }
+}
+
+// 主函数
+int main()
+{
+    game();
+    return 0;
+}
