@@ -1,5 +1,14 @@
-C Maze DFS
-用C语言实现的基于DFS（深度优先搜索）都迷宫求解程序。
-输入：迷宫地图
-输出：一条从起点到终点的可行路径
-环境：C（Dev C++/Visual Studio均可编译）
+# C Algorithm Practice
+
+这是我的 C 语言算法练习仓库。
+
+## 📂 包含的算法
+- [x] DFS 迷宫求解 (`maze-dfs.c`)
+- [x] 二分搜索 (`binary-search.c`)
+
+## 🚀 如何运行
+用 gcc 编译对应的 .c 文件即可。
+例如：
+```bash
+gcc binary-search.c -o binary-search
+./binary-search
